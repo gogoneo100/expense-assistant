@@ -5,6 +5,9 @@ WORKDIR /app
 # Install system dependencies and timezone support (Asia/Taipei)
 ENV TZ=Asia/Taipei
 ENV PYTHONUNBUFFERED=1
+ENV PYTHONIOENCODING=utf-8
+ENV LANG=C.UTF-8
+ENV LC_ALL=C.UTF-8
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
@@ -20,8 +23,9 @@ COPY . .
 # Persistent storage for SQLite database and data
 VOLUME ["/app/data"]
 
-# Default exposed port (overridden by $PORT on PaaS)
+# Default exposed ports (8080 for local, 10000 for Render)
 EXPOSE 8080
+EXPOSE 10000
 
 # Run entry point with unbuffered output
 CMD ["python", "-u", "run.py"]
