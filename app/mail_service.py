@@ -1,9 +1,12 @@
+from __future__ import annotations
 import imaplib
 import email
+import email.message
+from email.message import Message
+import email.utils
 from email.header import decode_header
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional
-import email.utils
 
 from app.config import config
 from app.parsers.banks import parse_email
@@ -30,7 +33,7 @@ def decode_mime_words(s: Optional[str]) -> str:
         return str(s)
     return "".join(parts)
 
-def get_email_body(msg: email.message.Message) -> str:
+def get_email_body(msg: Message) -> str:
     body_parts = []
     if msg.is_multipart():
         for part in msg.walk():
