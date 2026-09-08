@@ -1,0 +1,14 @@
+version: "3.8"
+
+services:
+  expense-assistant:
+    build: .
+    container_name: expense-assistant
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/app/data
+      - ./config.json:/app/config.json
+    environment:
+      - PYTHONUNBUFFERED=1

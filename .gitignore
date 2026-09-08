@@ -1,0 +1,28 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# Database files (User's private financial records)
+data/*.db
+data/expenses.db
+!data/.gitkeep
+
+# Sensitive configurations (Gmail app password, Telegram tokens)
+config.json
+!config.example.json
+
+# Scratch scripts and temporary debug tools
+scratch/
+check_cathay*.py
+
+# Operating system files
+.DS_Store
+Thumbs.db

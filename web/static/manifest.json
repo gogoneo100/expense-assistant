@@ -1,0 +1,18 @@
+{
+  "name": "智能消費管家",
+  "short_name": "消費管家",
+  "description": "Gmail 信用卡自動整理 · 費用申報 · 每日提醒",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#4f46e5",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "https://raw.githubusercontent.com/phosphor-icons/core/main/assets/fill/wallet-fill.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

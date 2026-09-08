@@ -1,0 +1,13 @@
+{
+  "gmail_user": "your_email@gmail.com",
+  "gmail_app_password": "your_16_char_app_password",
+  "gmail_folder": "INBOX",
+  "sync_lookback_days": 7,
+  "reminder_time": "21:30",
+  "reminder_enabled": true,
+  "telegram_bot_token": "",
+  "telegram_chat_id": "",
+  "telegram_enabled": false,
+  "server_port": 8080,
+  "currency": "TWD"
+}

@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#4f46e5">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="消費管家">
+  <link rel="manifest" href="/static/manifest.json">
+  <link rel="apple-touch-icon" href="https://raw.githubusercontent.com/phosphor-icons/core/main/assets/fill/wallet-fill.svg">
+  <title>智能消費管家 - Gmail 信用卡整理與費用申報</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Phosphor Icons CDN -->
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              100: '#e0e7ff',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap');
+    body {
+      font-family: 'Plus Jakarta Sans', 'Noto Sans TC', sans-serif;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+
+  <!-- Navbar -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center text-white shadow-md shadow-indigo-100">
+          <i class="ph ph-wallet text-2xl"></i>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold text-slate-900 leading-tight">智能消費管家</h1>
+          <p class="text-xs text-slate-500">Gmail 信用卡自動彙整 · 費用申報 · 每日提醒</p>
+        </div>
+      </div>
+
+        <button id="btnSyncGmail" onclick="openSyncModal()" class="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg text-sm font-medium transition">
+          <i class="ph ph-envelope-simple text-base"></i>
+          <span>同步 Gmail</span>
+          <i class="ph ph-caret-down text-xs text-indigo-500"></i>
+        </button>
+        <button id="btnRemind" onclick="triggerDigestModal()" class="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-amber-50 text-amber-700 hover:bg-amber-100 rounded-lg text-sm font-medium transition">
+          <i class="ph ph-bell-ringing text-base"></i>
+          <span>今日日報</span>
+        </button>
+        <button id="btnSettings" onclick="openSettingsModal()" class="inline-flex items-center space-x-1 px-3 py-1.5 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg text-sm font-medium transition">
+          <i class="ph ph-gear text-base"></i>
+          <span>設定</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+    <!-- Status / Notification Alert Banner (Hidden by default) -->
+    <div id="toast" class="hidden fixed bottom-6 right-6 z-50 max-w-md bg-slate-900 text-white px-4 py-3 rounded-xl shadow-xl flex items-center space-x-3 border border-slate-700 transition transform">
+      <i id="toastIcon" class="ph ph-check-circle text-emerald-400 text-xl"></i>
+      <span id="toastMsg" class="text-sm">操作成功</span>
+    </div>
+
+    <!-- Top Stats Cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <!-- Card 1: Today Total -->
+      <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm relative overflow-hidden">
+        <div class="flex justify-between items-start">
+          <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">今日總支出</span>
+          <span class="p-2 rounded-xl bg-indigo-50 text-indigo-600"><i class="ph ph-calendar-check text-xl"></i></span>
+        </div>
+        <div class="mt-3 flex items-baseline space-x-2">
+          <span class="text-3xl font-extrabold text-slate-900" id="statTodayTotal">$0</span>
+          <span class="text-xs text-slate-500 font-medium" id="statTodayCount">0 筆</span>
+        </div>
+        <div class="mt-2 text-xs text-slate-400" id="statTodayDate">--</div>
+      </div>
+
+      <!-- Card 2: Credit Card (Gmail) -->
+      <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm relative overflow-hidden">
+        <div class="flex justify-between items-start">
+          <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">💳 信用卡 (Gmail 抓取)</span>
+          <span class="p-2 rounded-xl bg-sky-50 text-sky-600"><i class="ph ph-credit-card text-xl"></i></span>
+        </div>
+        <div class="mt-3 flex items-baseline space-x-2">
+          <span class="text-3xl font-extrabold text-slate-900" id="statCardTotal">$0</span>
+          <span class="text-xs text-slate-500 font-medium" id="statCardCount">0 筆</span>
+        </div>
+        <div class="mt-2 text-xs text-slate-400">各大銀行刷卡信件自動匯入</div>
+      </div>
+
+      <!-- Card 3: Manual Reported -->
+      <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm relative overflow-hidden">
+        <div class="flex justify-between items-start">
+          <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">💵 手動申報 (現金/其他)</span>
+          <span class="p-2 rounded-xl bg-emerald-50 text-emerald-600"><i class="ph ph-hand-coins text-xl"></i></span>
+        </div>
+        <div class="mt-3 flex items-baseline space-x-2">
+          <span class="text-3xl font-extrabold text-slate-900" id="statManualTotal">$0</span>
+          <span class="text-xs text-slate-500 font-medium" id="statManualCount">0 筆</span>
+        </div>
+        <div class="mt-2 text-xs text-slate-400">手機隨手記帳或網頁申報</div>
+      </div>
+
+      <!-- Card 4: Month Total -->
+      <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm relative overflow-hidden">
+        <div class="flex justify-between items-start">
+          <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">本月累計支出</span>
+          <span class="p-2 rounded-xl bg-violet-50 text-violet-600"><i class="ph ph-chart-pie-slice text-xl"></i></span>
+        </div>
+        <div class="mt-3 flex items-baseline space-x-2">
+          <span class="text-3xl font-extrabold text-slate-900" id="statMonthTotal">$0</span>
+          <span class="text-xs text-slate-500 font-medium" id="statMonthCount">0 筆</span>
+        </div>
+        <div class="mt-2 text-xs text-slate-400" id="statMonthLabel">本月份全部花費</div>
+      </div>
+    </div>
+
+    <!-- Main Workspace: 2-Column Layout -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+      <!-- Left Column: Add Expense & Charts (5 cols) -->
+      <div class="lg:col-span-5 space-y-6">
+
+        <!-- Quick Expense Reporting Card -->
+        <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-base font-bold text-slate-900 flex items-center space-x-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-indigo-500"></span>
+              <span>手動費用申報 (非信用卡花費)</span>
+            </h2>
+          </div>
+
+          <!-- Tabs -->
+          <div class="flex border-b border-slate-100 mb-4 text-xs font-semibold">
+            <button id="tabNatural" onclick="switchInputTab('natural')" class="pb-2 border-b-2 border-indigo-600 text-indigo-600 px-3 transition">自然語言智能輸入</button>
+            <button id="tabForm" onclick="switchInputTab('form')" class="pb-2 border-b-2 border-transparent text-slate-400 hover:text-slate-600 px-3 transition">標準表單填寫</button>
+          </div>
+
+          <!-- Tab 1: Natural Language Input -->
+          <div id="paneNatural" class="space-y-3">
+            <!-- Quick Companion Tags -->
+            <div class="flex items-center space-x-1.5 pb-0.5">
+              <span class="text-[11px] text-slate-400 font-medium">快捷對象：</span>
+              <button type="button" onclick="insertCompanionTag('🍽️ 自己吃 ')" class="text-xs px-2 py-1 rounded-lg bg-orange-50 text-orange-700 hover:bg-orange-100 font-semibold border border-orange-200/60 transition flex items-center space-x-1">
+                <span>🍽️ 自己吃</span>
+              </button>
+              <button type="button" onclick="insertCompanionTag('👩‍❤️‍👨 和女友吃 ')" class="text-xs px-2 py-1 rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 font-semibold border border-rose-200/60 transition flex items-center space-x-1">
+                <span>👩‍❤️‍👨 和女友吃</span>
+              </button>
+              <button type="button" onclick="insertCompanionTag('👨‍👩‍👧 和家人吃 ')" class="text-xs px-2 py-1 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 font-semibold border border-red-200/60 transition flex items-center space-x-1">
+                <span>👨‍👩‍👧 和家人吃</span>
+              </button>
+            </div>
+            <div class="relative">
+              <textarea id="naturalInput" rows="2" placeholder="例：和女友吃 燒肉 1500&#10;例：自己吃 便當 110&#10;例：家人聚餐 火鍋 2600" class="w-full text-sm rounded-xl border-slate-200 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 p-3 bg-slate-50 transition resize-none"></textarea>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-xs text-slate-400">💡 系統會自動提取金額、類別與用餐對象</span>
+              <button onclick="submitNaturalExpense()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shadow-sm transition flex items-center space-x-1">
+                <i class="ph ph-paper-plane-right text-sm"></i>
+                <span>立即記帳</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Tab 2: Standard Form -->
+          <div id="paneForm" class="space-y-3 hidden">
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">金額 (TWD)</label>
+                <input id="formAmount" type="number" step="1" placeholder="100" class="w-full text-sm rounded-xl border-slate-200 p-2.5 bg-slate-50 focus:border-indigo-500">
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">類別</label>
+                <select id="formCategory" class="w-full text-sm rounded-xl border-slate-200 p-2.5 bg-slate-50 focus:border-indigo-500">
+                  <option value="飲食 (自己吃)">🍽️ 飲食 (自己吃)</option>
+                  <option value="飲食 (和女友吃)">👩‍❤️‍👨 飲食 (和女友吃)</option>
+                  <option value="飲食 (和家人吃)">👨‍👩‍👧 飲食 (和家人吃)</option>
+                  <option value="飲食 (其他)">🍲 飲食 (其他)</option>
+                  <option value="交通">🚗 交通</option>
+                  <option value="購物">🛍️ 購物</option>
+                  <option value="娛樂">🎬 娛樂</option>
+                  <option value="居家帳單">🏠 居家帳單</option>
+                  <option value="醫療保健">💊 醫療保健</option>
+                  <option value="學習教育">📚 學習教育</option>
+                  <option value="其他">📦 其他</option>
+                </select>
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">項目 / 商家</label>
+                <input id="formMerchant" type="text" placeholder="如：咖啡店、全聯" class="w-full text-sm rounded-xl border-slate-200 p-2.5 bg-slate-50 focus:border-indigo-500">
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">日期</label>
+                <input id="formDate" type="date" class="w-full text-sm rounded-xl border-slate-200 p-2.5 bg-slate-50 focus:border-indigo-500">
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">備註 (可選)</label>
+              <input id="formNote" type="text" placeholder="補充說明" class="w-full text-sm rounded-xl border-slate-200 p-2.5 bg-slate-50 focus:border-indigo-500">
+            </div>
+            <div class="flex justify-end pt-1">
+              <button onclick="submitFormExpense()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shadow-sm transition flex items-center space-x-1">
+                <i class="ph ph-plus-circle text-sm"></i>
+                <span>新增支出</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Expense Category Breakdown Chart -->
+        <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5 space-y-4">
+          <div class="flex items-center justify-between">
+            <h2 class="text-base font-bold text-slate-900 flex items-center space-x-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-violet-500"></span>
+              <span>消費類別佔比分析</span>
+            </h2>
+            <div class="flex items-center space-x-1 text-xs">
+              <button id="btnChartToday" onclick="switchChartScope('today')" class="px-2.5 py-1 rounded-lg bg-indigo-100 text-indigo-700 font-semibold">今日</button>
+              <button id="btnChartMonth" onclick="switchChartScope('month')" class="px-2.5 py-1 rounded-lg text-slate-500 hover:bg-slate-100">本月</button>
+            </div>
+          </div>
+
+          <div class="h-56 relative flex items-center justify-center">
+            <canvas id="categoryChart"></canvas>
+            <div id="noChartData" class="hidden text-xs text-slate-400">目前尚無分類消費資料</div>
+          </div>
+        </div>
+
+        <!-- Budget & Watermark Monitor Card -->
+        <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5 space-y-4">
+          <div class="flex items-center justify-between">
+            <h2 class="text-base font-bold text-slate-900 flex items-center space-x-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+              <span>預算與水位預警監控</span>
+            </h2>
+            <button onclick="openBudgetModal()" class="text-xs px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold transition flex items-center space-x-1">
+              <i class="ph ph-sliders-horizontal text-sm"></i>
+              <span>設定預算</span>
+            </button>
+          </div>
+
+          <!-- Overview Status Banner -->
+          <div id="budgetOverviewBar" class="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between text-xs">
+            <div>
+              <span class="text-slate-400">當月總預算：</span>
+              <span id="budgetSumTotal" class="font-bold text-slate-800">$0</span>
+            </div>
+            <div>
+              <span class="text-slate-400">總支出：</span>
+              <span id="budgetSumSpent" class="font-bold text-indigo-600">$0</span>
+            </div>
+            <div>
+              <span id="budgetOverallBadge" class="px-2 py-0.5 rounded-full font-bold text-[11px] bg-emerald-100 text-emerald-700">水位正常</span>
+            </div>
+          </div>
+
+          <!-- Watermark Bars List -->
+          <div id="budgetItemsList" class="space-y-3.5 max-h-80 overflow-y-auto pr-1">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Right Column: Transactions List (7 cols) -->
+      <div class="lg:col-span-7 space-y-4">
+
+        <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5">
+          <!-- Filter & Search Toolbar -->
+          <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
+            <div class="flex items-center space-x-2">
+              <h2 class="text-base font-bold text-slate-900">消費明細列表</h2>
+              <span id="transTotalCountBadge" class="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-semibold">0 筆</span>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2">
+              <!-- Source Filter -->
+              <select id="filterSource" onchange="loadTransactions()" class="text-xs rounded-xl border-slate-200 py-1.5 px-2.5 bg-slate-50 text-slate-700 focus:border-indigo-500">
+                <option value="">全部來源</option>
+                <option value="gmail">💳 信用卡 (Gmail)</option>
+                <option value="manual">💵 手動申報</option>
+              </select>
+
+              <!-- Category Filter -->
+              <select id="filterCategory" onchange="loadTransactions()" class="text-xs rounded-xl border-slate-200 py-1.5 px-2.5 bg-slate-50 text-slate-700 focus:border-indigo-500">
+                <option value="">全部分類</option>
+                <option value="飲食 (自己吃)">🍽️ 飲食 (自己吃)</option>
+                <option value="飲食 (和女友吃)">👩‍❤️‍👨 飲食 (和女友吃)</option>
+                <option value="飲食 (和家人吃)">👨‍👩‍👧 飲食 (和家人吃)</option>
+                <option value="飲食 (其他)">🍲 飲食 (其他)</option>
+                <option value="交通">🚗 交通</option>
+                <option value="購物">🛍️ 購物</option>
+                <option value="娛樂">🎬 娛樂</option>
+                <option value="居家帳單">🏠 居家帳單</option>
+                <option value="醫療保健">💊 醫療保健</option>
+                <option value="學習教育">📚 學習教育</option>
+                <option value="其他">📦 其他</option>
+              </select>
+
+              <!-- Search Box -->
+              <div class="relative">
+                <input id="searchKeyword" onkeyup="if(event.key==='Enter') loadTransactions()" type="text" placeholder="搜尋商家或備註..." class="text-xs rounded-xl border-slate-200 py-1.5 pl-7 pr-2.5 bg-slate-50 w-36 focus:w-44 focus:border-indigo-500 transition-all">
+                <i class="ph ph-magnifying-glass absolute left-2 top-2 text-slate-400 text-xs"></i>
+              </div>
+            </div>
+          </div>
+
+          <!-- Transaction Items Container -->
+          <div id="transList" class="divide-y divide-slate-100 max-h-[600px] overflow-y-auto pr-1 mt-1">
+            <!-- Items injected by app.js -->
+            <div class="py-12 text-center text-slate-400 text-sm">載入中...</div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Sync Date Range Modal -->
+  <div id="syncModal" class="hidden fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+        <div class="flex items-center space-x-2 text-indigo-600">
+          <i class="ph ph-envelope-simple text-xl"></i>
+          <h2 class="text-base font-bold text-slate-900">同步 Gmail 信用卡通知</h2>
+        </div>
+        <button onclick="closeSyncModal()" class="text-slate-400 hover:text-slate-600">
+          <i class="ph ph-x text-lg"></i>
+        </button>
+      </div>
+
+      <div class="space-y-4 text-xs">
+        <!-- Presets -->
+        <div>
+          <label class="block font-semibold text-slate-700 mb-2">快速選擇時間區間：</label>
+          <div class="grid grid-cols-4 gap-2">
+            <button type="button" onclick="selectSyncPreset(7)" id="presetBtn7" class="py-2 px-1 rounded-xl border border-indigo-600 bg-indigo-50 text-indigo-700 font-bold text-center transition">近 7 天</button>
+            <button type="button" onclick="selectSyncPreset(14)" id="presetBtn14" class="py-2 px-1 rounded-xl border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 text-center transition">近 14 天</button>
+            <button type="button" onclick="selectSyncPreset(30)" id="presetBtn30" class="py-2 px-1 rounded-xl border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 text-center transition">近 30 天</button>
+            <button type="button" onclick="selectSyncPreset(90)" id="presetBtn90" class="py-2 px-1 rounded-xl border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 text-center transition">近 3 個月</button>
+          </div>
+        </div>
+
+        <!-- Custom Date Range -->
+        <div class="bg-slate-50 p-3 rounded-xl border border-slate-200/80 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="font-semibold text-slate-700">或自訂起訖日期：</span>
+            <button type="button" onclick="resetSyncToThisMonth()" class="text-[11px] text-indigo-600 hover:underline">設為本月份</button>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <span class="text-[11px] text-slate-500 mb-1 block">開始日期</span>
+              <input type="date" id="syncStartDate" onchange="onCustomDateChange()" class="w-full text-xs rounded-lg border-slate-200 p-2 bg-white">
+            </div>
+            <div>
+              <span class="text-[11px] text-slate-500 mb-1 block">結束日期</span>
+              <input type="date" id="syncEndDate" onchange="onCustomDateChange()" class="w-full text-xs rounded-lg border-slate-200 p-2 bg-white">
+            </div>
+          </div>
+        </div>
+
+        <div class="text-[11px] text-slate-400 leading-relaxed flex items-start space-x-1.5">
+          <i class="ph ph-info text-sm text-indigo-500 shrink-0 mt-0.5"></i>
+          <span>系統具備自動去重機制，重複信件不會重複入庫；高速快篩將自動過濾非銀行信件。</span>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-end space-x-2 pt-2 border-t border-slate-100">
+        <button onclick="closeSyncModal()" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition">取消</button>
+        <button id="btnExecuteSync" onclick="executeSyncWithRange()" class="px-5 py-2 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-sm transition flex items-center space-x-1.5">
+          <i class="ph ph-arrows-clockwise text-sm"></i>
+          <span>開始同步抓取</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Daily Digest Modal -->
+  <div id="digestModal" class="hidden fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+        <div class="flex items-center space-x-2 text-indigo-600">
+          <i class="ph ph-bell-ringing text-xl"></i>
+          <h2 class="text-base font-bold text-slate-900">今日消費日報與提醒預覽</h2>
+        </div>
+        <button onclick="closeDigestModal()" class="text-slate-400 hover:text-slate-600">
+          <i class="ph ph-x text-lg"></i>
+        </button>
+      </div>
+
+      <div class="bg-slate-900 text-slate-100 p-4 rounded-xl font-mono text-xs whitespace-pre-wrap leading-relaxed max-h-80 overflow-y-auto" id="digestTextContent">
+        產生中...
+      </div>
+
+      <div class="flex items-center justify-between pt-2">
+        <span class="text-xs text-slate-400" id="telegramNoticeStatus">已連動 Telegram 自動發送</span>
+        <div class="flex items-center space-x-2">
+          <button onclick="copyDigestText()" class="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 transition flex items-center space-x-1">
+            <i class="ph ph-copy text-sm"></i>
+            <span>複製文字</span>
+          </button>
+          <button onclick="triggerImmediateReminder()" class="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition flex items-center space-x-1">
+            <i class="ph ph-paper-plane-tilt text-sm"></i>
+            <span>立即推播</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div id="settingsModal" class="hidden fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 space-y-5 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+        <div class="flex items-center space-x-2 text-indigo-600">
+          <i class="ph ph-gear-six text-xl"></i>
+          <h2 class="text-base font-bold text-slate-900">系統連線與提醒設定</h2>
+        </div>
+        <button onclick="closeSettingsModal()" class="text-slate-400 hover:text-slate-600">
+          <i class="ph ph-x text-lg"></i>
+        </button>
+      </div>
+
+      <!-- Settings Sections -->
+      <div class="space-y-5 text-sm">
+
+        <!-- Gmail IMAP Settings -->
+        <div class="bg-slate-50 p-4 rounded-xl border border-slate-200/80 space-y-3">
+          <div class="flex items-center justify-between">
+            <h3 class="font-bold text-slate-800 flex items-center space-x-1.5">
+              <i class="ph ph-envelope-simple text-indigo-600 text-base"></i>
+              <span>Gmail 信用卡信件連線 (IMAP)</span>
+            </h3>
+            <span id="badgeGmailStatus" class="text-xs px-2 py-0.5 rounded-full bg-slate-200 text-slate-600">未設定</span>
+          </div>
+          <div class="text-xs text-slate-500 leading-relaxed">
+            系統透過安全 SSL 連線抓取銀行刷卡通知信件。請至 Google 帳號「安全性」設定產生 <a href="https://myaccount.google.com/apppasswords" target="_blank" class="text-indigo-600 underline">16 位應用程式密碼</a>。
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+            <div>
+              <label class="block text-xs font-medium text-slate-700 mb-1">Gmail 帳號 (Email)</label>
+              <input id="cfgGmailUser" type="email" placeholder="example@gmail.com" class="w-full text-xs rounded-lg border-slate-200 p-2 bg-white">
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-700 mb-1">應用程式密碼 (16碼)</label>
+              <input id="cfgGmailPassword" type="password" placeholder="abcd efgh ijkl mnop" class="w-full text-xs rounded-lg border-slate-200 p-2 bg-white">
+            </div>
+          </div>
+        </div>
+
+        <!-- Daily Reminder Schedule -->
+        <div class="bg-slate-50 p-4 rounded-xl border border-slate-200/80 space-y-3">
+          <div class="flex items-center justify-between">
+            <h3 class="font-bold text-slate-800 flex items-center space-x-1.5">
+              <i class="ph ph-clock-countdown text-indigo-600 text-base"></i>
+              <span>每日定時彙整與提醒時間</span>
+            </h3>
+            <label class="inline-flex items-center cursor-pointer">
+              <input id="cfgReminderEnabled" type="checkbox" class="sr-only peer" checked>
+              <div class="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+            </label>
+          </div>
+          <div class="flex items-center space-x-3">
+            <span class="text-xs text-slate-600">每天定時發送消費戰報：</span>
+            <input id="cfgReminderTime" type="time" value="21:30" class="text-xs rounded-lg border-slate-200 p-1.5 bg-white">
+          </div>
+        </div>
+
+        <!-- Telegram Bot Settings (Optional) -->
+        <div class="bg-slate-50 p-4 rounded-xl border border-slate-200/80 space-y-3">
+          <div class="flex items-center justify-between">
+            <h3 class="font-bold text-slate-800 flex items-center space-x-1.5">
+              <i class="ph ph-telegram-logo text-indigo-600 text-base"></i>
+              <span>Telegram 機器人推播與記帳 (選配)</span>
+            </h3>
+            <label class="inline-flex items-center cursor-pointer">
+              <input id="cfgTelegramEnabled" type="checkbox" class="sr-only peer">
+              <div class="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+            </label>
+          </div>
+          <div class="text-xs text-slate-500">
+            開啟後，每日彙整會自動發送至您的 Telegram，在對話框直接打字即可隨手申報花費。
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+            <div>
+              <label class="block text-xs font-medium text-slate-700 mb-1">Bot Token (向 @BotFather 取得)</label>
+              <input id="cfgTelegramToken" type="password" placeholder="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11" class="w-full text-xs rounded-lg border-slate-200 p-2 bg-white">
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-700 mb-1">Chat ID (個人或群組)</label>
+              <input id="cfgTelegramChatId" type="text" placeholder="向 Bot 發送 /start 自動取得" class="w-full text-xs rounded-lg border-slate-200 p-2 bg-white">
+            </div>
+          </div>
+        </div>
+
+        <!-- Custom Rules Management -->
+        <div class="bg-slate-50 p-4 rounded-xl border border-slate-200/80 space-y-3">
+          <div class="flex items-center justify-between">
+            <h3 class="font-bold text-slate-800 flex items-center space-x-1.5">
+              <i class="ph ph-tag text-indigo-600 text-base"></i>
+              <span>商家智能分類自訂規則</span>
+            </h3>
+          </div>
+          <div class="flex gap-2">
+            <input id="newRuleKeyword" type="text" placeholder="商家關鍵字 (例：路易莎)" class="text-xs rounded-lg border-slate-200 p-2 bg-white flex-1">
+            <select id="newRuleCategory" class="text-xs rounded-lg border-slate-200 p-2 bg-white w-36">
+              <option value="飲食 (自己吃)">🍽️ 飲食 (自己吃)</option>
+              <option value="飲食 (和女友吃)">👩‍❤️‍👨 飲食 (和女友吃)</option>
+              <option value="飲食 (和家人吃)">👨‍👩‍👧 飲食 (和家人吃)</option>
+              <option value="飲食 (其他)">🍲 飲食 (其他)</option>
+              <option value="交通">🚗 交通</option>
+              <option value="購物">🛍️ 購物</option>
+              <option value="娛樂">🎬 娛樂</option>
+              <option value="居家帳單">🏠 居家帳單</option>
+              <option value="醫療保健">💊 醫療保健</option>
+              <option value="學習教育">📚 學習教育</option>
+              <option value="其他">📦 其他</option>
+            </select>
+            <button onclick="addCustomRule()" class="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-semibold hover:bg-indigo-700 transition">新增規則</button>
+          </div>
+          <div id="rulesListContainer" class="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto pt-1">
+            <!-- Rules tags loaded dynamically -->
+          </div>
+        </div>
+
+        <!-- Data Management (Clear Demo Data / Reset) -->
+        <div class="bg-slate-50 p-4 rounded-xl border border-slate-200/80 space-y-3">
+          <div class="flex items-center justify-between">
+            <h3 class="font-bold text-slate-800 flex items-center space-x-1.5">
+              <i class="ph ph-database text-indigo-600 text-base"></i>
+              <span>資料維護與測試資料管理</span>
+            </h3>
+          </div>
+          <p class="text-xs text-slate-500">
+            如果您已完成 Gmail 設定並同步真實帳單，可一鍵清除系統初期的測試假資料。
+          </p>
+          <div class="flex flex-wrap gap-2 pt-1">
+            <button onclick="clearDemoData()" class="px-3 py-1.5 bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 rounded-lg text-xs font-semibold transition flex items-center space-x-1">
+              <i class="ph ph-broom text-sm"></i>
+              <span>一鍵清空測試假資料</span>
+            </button>
+            <button onclick="clearAllData()" class="px-3 py-1.5 bg-slate-200 text-slate-700 hover:bg-slate-300 rounded-lg text-xs font-semibold transition flex items-center space-x-1">
+              <i class="ph ph-trash text-sm"></i>
+              <span>清空全部消費記錄 (重設)</span>
+            </button>
+            <button onclick="seedDemoData()" class="px-3 py-1.5 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg text-xs font-medium transition flex items-center space-x-1">
+              <i class="ph ph-plus text-sm"></i>
+              <span>載入測試範例資料</span>
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="flex items-center justify-end space-x-2 pt-2 border-t border-slate-100">
+        <button onclick="closeSettingsModal()" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition">取消</button>
+        <button onclick="saveSettings()" class="px-5 py-2 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-sm transition">儲存設定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Budget Settings Modal -->
+  <div id="budgetModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white w-full max-w-xl rounded-2xl shadow-xl border border-slate-100 p-6 space-y-5 animate-in fade-in zoom-in-95 duration-150">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+        <div class="flex items-center space-x-2.5">
+          <span class="p-2 rounded-xl bg-emerald-50 text-emerald-600"><i class="ph ph-wallet text-xl"></i></span>
+          <div>
+            <h2 class="text-base font-bold text-slate-900">每月類別預算與水位預警設定</h2>
+            <p class="text-xs text-slate-400">自訂各項別每月額度上限與警戒百分比（預設 80%）</p>
+          </div>
+        </div>
+        <button onclick="closeBudgetModal()" class="text-slate-400 hover:text-slate-600 p-1 rounded-lg"><i class="ph ph-x text-lg"></i></button>
+      </div>
+
+      <div class="text-xs text-slate-500 bg-slate-50 p-2.5 rounded-xl border border-slate-200/60 flex items-center space-x-1.5">
+        <i class="ph ph-info text-indigo-500 text-sm"></i>
+        <span>當支出達預警水位（如 80%）會顯示黃色警示；超過 100% 時顯示紅色超標並提醒。</span>
+      </div>
+
+      <div id="budgetInputsList" class="space-y-3 max-h-[50vh] overflow-y-auto pr-1">
+        <!-- Dynamic input rows per category -->
+      </div>
+
+      <div class="flex items-center justify-end space-x-2 pt-3 border-t border-slate-100">
+        <button onclick="closeBudgetModal()" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition">取消</button>
+        <button onclick="saveAllBudgets()" class="px-5 py-2 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-sm transition">儲存預算設定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Category Switch Quick Modal -->
+  <div id="categorySwitchModal" class="fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white w-full max-w-sm rounded-2xl shadow-xl border border-slate-100 p-5 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+      <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+        <h3 class="font-bold text-slate-800 text-sm flex items-center space-x-1.5">
+          <i class="ph ph-tag text-indigo-600 text-base"></i>
+          <span>變更類別 / 用餐對象</span>
+        </h3>
+        <button onclick="closeCategorySwitchModal()" class="text-slate-400 hover:text-slate-600"><i class="ph ph-x text-base"></i></button>
+      </div>
+      <div class="text-xs text-slate-500 bg-slate-50 p-2 rounded-xl" id="switchTxInfo">--</div>
+      <div class="grid grid-cols-1 gap-1.5 max-h-60 overflow-y-auto" id="switchCategoryOptions">
+        <!-- Category choices -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Transaction Modal -->
+  <div id="editTxModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-slate-100 p-6 space-y-5 animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+        <div class="flex items-center space-x-2.5">
+          <span class="p-2 rounded-xl bg-indigo-50 text-indigo-600"><i class="ph ph-pencil-simple-line text-xl"></i></span>
+          <div>
+            <h2 class="text-base font-bold text-slate-900">自訂店家名稱與明細</h2>
+            <p class="text-xs text-slate-400">自訂店家名稱、調整用餐對象與備註</p>
+          </div>
+        </div>
+        <button onclick="closeEditTxModal()" class="text-slate-400 hover:text-slate-600 p-1 rounded-lg"><i class="ph ph-x text-lg"></i></button>
+      </div>
+
+      <!-- Bank generic merchant alert notice -->
+      <div id="editTxNotice" class="hidden text-xs text-amber-700 bg-amber-50 p-3 rounded-xl border border-amber-200/80 flex items-start space-x-2">
+        <i class="ph ph-info text-base text-amber-500 shrink-0 mt-0.5"></i>
+        <div class="leading-relaxed">
+          <span class="font-bold">銀行通知說明：</span>
+          <span>國泰世華銀行消費彙整通知對於非特約商店僅會以「餐飲」代碼顯示（備註：註一，暫無商店資訊）。您可以在下方直接填入實際用餐的店家名稱！</span>
+        </div>
+      </div>
+
+      <div class="space-y-4 text-xs">
+        <!-- Merchant Input -->
+        <div>
+          <label class="block font-bold text-slate-700 mb-1.5">店家名稱 / 消費項目：</label>
+          <input type="text" id="editTxMerchant" class="w-full text-sm rounded-xl border-slate-200 p-2.5 bg-slate-50 focus:bg-white focus:border-indigo-500 transition font-medium" placeholder="例如：麥當勞、巷口便當、路易莎咖啡">
+          <!-- Quick presets for dining merchants -->
+          <div class="flex flex-wrap items-center gap-1.5 mt-2">
+            <span class="text-[11px] text-slate-400">常用速填：</span>
+            <button type="button" onclick="setEditMerchantPreset('麥當勞')" class="px-2 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 text-slate-600 text-[11px] transition">🍔 麥當勞</button>
+            <button type="button" onclick="setEditMerchantPreset('便當店')" class="px-2 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 text-slate-600 text-[11px] transition">🍱 便當</button>
+            <button type="button" onclick="setEditMerchantPreset('麵店')" class="px-2 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 text-slate-600 text-[11px] transition">🍜 麵店</button>
+            <button type="button" onclick="setEditMerchantPreset('路易莎咖啡')" class="px-2 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 text-slate-600 text-[11px] transition">☕ 路易莎</button>
+            <button type="button" onclick="setEditMerchantPreset('星巴克')" class="px-2 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 text-slate-600 text-[11px] transition">☕ 星巴克</button>
+            <button type="button" onclick="setEditMerchantPreset('7-ELEVEN')" class="px-2 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 text-slate-600 text-[11px] transition">🏪 7-11</button>
+            <button type="button" onclick="setEditMerchantPreset('全家便利商店')" class="px-2 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 text-slate-600 text-[11px] transition">🏪 全家</button>
+          </div>
+        </div>
+
+        <!-- Category / Dining subdivision selector -->
+        <div>
+          <label class="block font-bold text-slate-700 mb-1.5">消費類別 / 用餐對象：</label>
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2" id="editTxCategoryOptions">
+            <!-- Injected by app.js -->
+          </div>
+        </div>
+
+        <!-- Note Input -->
+        <div>
+          <label class="block font-bold text-slate-700 mb-1.5">備註說明：</label>
+          <input type="text" id="editTxNote" class="w-full text-xs rounded-xl border-slate-200 p-2.5 bg-slate-50 focus:bg-white focus:border-indigo-500 transition" placeholder="例如：晚餐外帶、加班宵夜、跟女友約會">
+        </div>
+
+        <!-- Meta info (read-only or light edit) -->
+        <div class="bg-slate-50 p-3 rounded-xl border border-slate-200/80 grid grid-cols-2 gap-3">
+          <div>
+            <span class="text-[11px] text-slate-400 block mb-0.5">消費金額</span>
+            <div class="flex items-center space-x-1">
+              <span class="text-sm font-bold text-slate-800">$</span>
+              <input type="number" id="editTxAmount" class="w-28 text-sm font-bold text-slate-800 bg-white border border-slate-200 rounded-lg px-2 py-1 focus:border-indigo-500">
+            </div>
+          </div>
+          <div>
+            <span class="text-[11px] text-slate-400 block mb-0.5">交易時間 / 管道</span>
+            <div class="text-xs font-semibold text-slate-700 mt-1" id="editTxTimeAndSource">--</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-end space-x-2 pt-3 border-t border-slate-100">
+        <button onclick="closeEditTxModal()" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition">取消</button>
+        <button onclick="saveEditTx()" class="px-5 py-2 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-sm transition flex items-center space-x-1.5">
+          <i class="ph ph-check text-sm"></i>
+          <span>儲存變更</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- App Script -->
+  <script src="/static/app.js"></script>
+</body>
+</html>

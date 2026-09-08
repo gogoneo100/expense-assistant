@@ -1,0 +1,10 @@
+{
+  "$schema": "https://schema.zeabur.app/service.json",
+  "name": "expense-assistant",
+  "ports": [
+    {
+      "port": 8080,
+      "type": "HTTP"
+    }
+  ]
+}
