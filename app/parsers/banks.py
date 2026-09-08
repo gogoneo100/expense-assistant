@@ -1,6 +1,7 @@
+from __future__ import annotations
 import re
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Tuple
 from html.parser import HTMLParser
 from app.parsers.base import BaseBankParser, ParsedTransaction
 
